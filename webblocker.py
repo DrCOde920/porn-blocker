@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-"""Manage permanent block entries in a hosts file safely (block/unblock/list).
+"""Simple, safe web blocker CLI for hosts file (block/unblock/test).
 
-This script keeps a marked block section so entries are reversible and backed up.
+Usage examples:
+  python3 webblocker.py --block --hosts hosts.test    # write markers & blocked sites to hosts.test
+  python3 webblocker.py --unblock --hosts hosts.test  # remove the block section
+  python3 webblocker.py --block --dry-run             # show actions without modifying
+
+This script reuses `sites_to_block` and `redirect` if present in `permanent_blocker.py`.
 """
 
 import argparse
@@ -10,32 +15,13 @@ import shutil
 import sys
 from pathlib import Path
 
-# Define the list of websites you want to block permanently
-# (deduplicated while preserving order)
-_sites = [
-    "www.xnxx.com", "www.fuckcams.com", "www.pornhub.com", "www.redtube.com",
-    "www.youporn.com", "www.spankbang.com", "www.tube8.com", "www.homemade-tube.com",
-    "www.porn.com", "www.brazzers.com", "www.nuvid.com", "www.yuvutu.com",
-    "www.eporner.com", "www.tnaflix.com", "www.pornhd.com", "www.fapdu.com",
-    "www.slutload.com", "www.porn300.com", "www.pornhat.com", "www.pornmd.com",
-    "www.xvideos.com", "www.youjizz.com", "www.spankwire.com", "www.xhamster.com",
-    "www.pornhubpremium.com", "www.onlyfans.com", "www.patreon.com", "www.fetlife.com",
-    "www.adultfriendfinder.com", "www.cam4.com", "www.chaturbate.com", "www.myfreecams.com",
-    "www.streamate.com", "www.bongaCams.com", "www.imlive.com", "www.flirt4free.com",
-    "www.livejasmin.com", "www.cams.com", "www.stripchat.com", "www.camster.com",
-    "www.sexier.com", "www.iwantclips.com", "www.clips4sale.com", "www.fleshlight.com",
-    "www.povd.com", "www.eroprofile.com", "www.sex.com", "www.sexsearch.com",
-    "www.adultsearch.com", "www.backpage.com", "www.craigslist.org", "www.loveawake.com",
-    "www.mature.nl", "www.rockenglish.com", "www.llpgpro.com", "www.best.aliexpress.com",
-]
-
-# preserve order and remove duplicates
-sites_to_block = list(dict.fromkeys(_sites))
-
-# The default location of the hosts file on Linux
-DEFAULT_HOSTS = "/etc/hosts"
-# The IP address to redirect blocked sites to (localhost)
-redirect = "127.0.0.1"
+# Try to import the sites list from existing file to avoid duplication.
+try:
+    from permanent_blocker import sites_to_block, redirect
+except Exception:
+    # Fallback short list if import fails
+    sites_to_block = ["www.example.com"]
+    redirect = "127.0.0.1"
 
 START_MARKER = "# WEBBLOCKER START\n"
 END_MARKER = "# WEBBLOCKER END\n"
@@ -56,7 +42,7 @@ def add_sites_to_hosts(hosts_path: str, dry_run: bool = False, make_backup: bool
             print("Block section already present; skipping add.")
             return
         if dry_run:
-            print("DRY-RUN: Would append block section with the following lines:")
+            print("DRY-RUN: Would create backup (if exists) and append block section with the following lines:")
             for s in sites_to_block:
                 print(f"{redirect} {s}")
             return
@@ -115,12 +101,7 @@ def list_blocked(hosts_path: str) -> None:
         print("Currently blocked entries:")
         print(block)
     else:
-        # Fallback: show any lines that contain blocked hostnames
-        print("No block section found in hosts file. Showing matching lines (fallback):")
-        with open(hosts_path, "r") as f:
-            for l in f:
-                if any(site in l for site in sites_to_block):
-                    print(l.rstrip())
+        print("No block section found in hosts file.")
 
 
 def main(argv=None):
@@ -129,7 +110,7 @@ def main(argv=None):
     g.add_argument("--block", action="store_true", help="Add block section to hosts file")
     g.add_argument("--unblock", action="store_true", help="Remove block section from hosts file")
     g.add_argument("--list", action="store_true", help="List blocked entries")
-    p.add_argument("--hosts", default=DEFAULT_HOSTS, help="Path to hosts file to edit (default: /etc/hosts)")
+    p.add_argument("--hosts", default="/etc/hosts", help="Path to hosts file to edit (default: /etc/hosts)")
     p.add_argument("--dry-run", action="store_true", help="Show changes without modifying files")
     p.add_argument("--no-backup", action="store_true", help="Do not create a backup file before modifying hosts")
 
@@ -149,5 +130,5 @@ def main(argv=None):
         p.print_help()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
